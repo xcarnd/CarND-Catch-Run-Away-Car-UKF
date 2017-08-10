@@ -35,7 +35,9 @@ int main()
   double target_x = 0.0;
   double target_y = 0.0;
 
-  h.onMessage([&ukf,&target_x,&target_y](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  long long last_timestamp = 0;
+
+  h.onMessage([&ukf,&target_x,&target_y,&last_timestamp](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -103,20 +105,46 @@ int main()
           iss_R >> timestamp_R;
           meas_package_R.timestamp_ = timestamp_R;
           
-    	  ukf.ProcessMeasurement(meas_package_R);
+          ukf.ProcessMeasurement(meas_package_R);
 
-	  target_x = ukf.x_[0];
-	  target_y = ukf.x_[1];
+          target_x = ukf.x_[0];
+          target_y = ukf.x_[1];
+          double target_v = ukf.x_[2];
+          double target_yaw = ukf.x_[3];
+          double target_yr = ukf.x_[4];
 
-    	  double heading_to_target = atan2(target_y - hunter_y, target_x - hunter_x);
-    	  while (heading_to_target > M_PI) heading_to_target-=2.*M_PI; 
-    	  while (heading_to_target <-M_PI) heading_to_target+=2.*M_PI;
-    	  //turn towards the target
-    	  double heading_difference = heading_to_target - hunter_heading;
-    	  while (heading_difference > M_PI) heading_difference-=2.*M_PI; 
-    	  while (heading_difference <-M_PI) heading_difference+=2.*M_PI;
+          // predict where the target will be next time.
+          // similar to prediction
+          if (last_timestamp > 0) {
+            double dx;
+            double dy;
+            double dt = (timestamp_L - last_timestamp) / 1e6;
+            if (fabs(target_yr) < 1e-5) {
+              // zero yaw_dot
+              dx = cos(target_yaw) * target_v * dt;
+              dy = sin(target_yaw) * target_v * dt;
+            } else {
+              // non-zero yaw_dot
+              double k = target_v / target_yr;
+              double yaw_kp1 = target_yaw + target_yr * dt;
+              dx = k * (sin(yaw_kp1) - sin(target_yaw));
+              dy = k * (-cos(yaw_kp1) + cos(target_yaw));
+            }
+            std::cout<<"X: "<<target_x<<", Y: "<<target_y<<"; Px: "<<target_x + dx<<", Py: "<<target_y + dy<<std::endl;
+            target_x += dx;
+            target_y += dy;
+          }
 
-    	  double distance_difference = sqrt((target_y - hunter_y)*(target_y - hunter_y) + (target_x - hunter_x)*(target_x - hunter_x));
+
+          double heading_to_target = atan2(target_y - hunter_y, target_x - hunter_x);
+          while (heading_to_target > M_PI) heading_to_target-=2.*M_PI;
+          while (heading_to_target <-M_PI) heading_to_target+=2.*M_PI;
+          //turn towards the target
+          double heading_difference = heading_to_target - hunter_heading;
+          while (heading_difference > M_PI) heading_difference-=2.*M_PI;
+          while (heading_difference <-M_PI) heading_difference+=2.*M_PI;
+
+          double distance_difference = sqrt((target_y - hunter_y)*(target_y - hunter_y) + (target_x - hunter_x)*(target_x - hunter_x));
 
           json msgJson;
           msgJson["turn"] = heading_difference;
@@ -124,7 +152,7 @@ int main()
           auto msg = "42[\"move_hunter\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-	  
+          last_timestamp = timestamp_L;
         }
       } else {
         // Manual driving

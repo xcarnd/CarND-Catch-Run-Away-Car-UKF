@@ -67,6 +67,32 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
+  ///* Lidar measurement transform matrix
+  MatrixXd H_lidar_;
+
+  ///* Lidar measurement covariance matrix noise
+  MatrixXd R_lidar_;
+
+  ///* Radar measurement covariance matrix noise
+  MatrixXd R_radar_;
+
+  ///* chi-square limit for lidar update
+  double chi_square_lidar_;
+
+  ///* total number of lidar updates
+  int num_lidar_updates_;
+
+  ///* number of lidar updates with nis > chi-square limit
+  int num_lidar_above_limit_;
+
+  ///* chi-square limit for radar update
+  double chi_square_radar_;
+
+  ///* total number of radar updates
+  int num_radar_updates_;
+
+  ///* number of radar updates with nis > chi-square limit
+  int num_radar_above_limit_;
 
   /**
    * Constructor
@@ -82,7 +108,7 @@ public:
    * ProcessMeasurement
    * @param meas_package The latest measurement data of either radar or laser
    */
-  void ProcessMeasurement(MeasurementPackage meas_package);
+  void ProcessMeasurement(const MeasurementPackage& meas_package);
 
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
@@ -95,13 +121,19 @@ public:
    * Updates the state and the state covariance matrix using a laser measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateLidar(MeasurementPackage meas_package);
+  void UpdateLidar(const MeasurementPackage& meas_package);
 
   /**
    * Updates the state and the state covariance matrix using a radar measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateRadar(MeasurementPackage meas_package);
+  void UpdateRadar(const MeasurementPackage& meas_package);
+
+  /**
+   * Computed predicted mean and covariance matrix
+   */
+  void ComputePredictedMeanAndCovarianceMatrix(VectorXd& x, MatrixXd& P);
+
 };
 
 #endif /* UKF_H */
