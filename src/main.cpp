@@ -111,30 +111,33 @@ int main()
           target_y = ukf.x_[1];
           double target_v = ukf.x_[2];
           double target_yaw = ukf.x_[3];
-          double target_yr = ukf.x_[4];
+          while (target_yaw > M_PI) target_yaw-=2.*M_PI;
+          while (target_yaw <-M_PI) target_yaw+=2.*M_PI;
 
-          // predict where the target will be next time.
-          // similar to prediction
-          if (last_timestamp > 0) {
-            double dx;
-            double dy;
-            double dt = (timestamp_L - last_timestamp) / 1e6;
-            if (fabs(target_yr) < 1e-5) {
-              // zero yaw_dot
-              dx = cos(target_yaw) * target_v * dt;
-              dy = sin(target_yaw) * target_v * dt;
+//          std::cout<<target_x<<", "<<target_y<<", "<<target_v<<", "<<target_yaw<<std::endl;
+
+          double Kx = target_x - hunter_x;
+          double Ky = target_y - hunter_y;
+
+          if (Kx * Kx + Ky * Ky > 0.01) {
+            double dt = -0.5 * (Kx * Kx + Ky * Ky) /
+                        (Kx * cos(target_yaw) * target_v + Ky * sin(target_yaw) * target_v);
+
+            if (dt > 0) {
+              double dx = cos(target_yaw) * target_v * dt;
+              double dy = sin(target_yaw) * target_v * dt;
+
+              std::cout << "dt: " << dt
+                        << ", X: " << target_x << ", Y: " << target_y
+                        << "; Px: " << target_x + dx << ", Py: " << target_y + dy
+                        << "; Hx: " << hunter_x << ", Hy: " << hunter_y << std::endl;
+              target_x += dx;
+              target_y += dy;
             } else {
-              // non-zero yaw_dot
-              double k = target_v / target_yr;
-              double yaw_kp1 = target_yaw + target_yr * dt;
-              dx = k * (sin(yaw_kp1) - sin(target_yaw));
-              dy = k * (-cos(yaw_kp1) + cos(target_yaw));
+              target_x = hunter_x;
+              target_y = hunter_y;
             }
-            std::cout<<"X: "<<target_x<<", Y: "<<target_y<<"; Px: "<<target_x + dx<<", Py: "<<target_y + dy<<std::endl;
-            target_x += dx;
-            target_y += dy;
           }
-
 
           double heading_to_target = atan2(target_y - hunter_y, target_x - hunter_x);
           while (heading_to_target > M_PI) heading_to_target-=2.*M_PI;
